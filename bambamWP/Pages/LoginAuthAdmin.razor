@@ -1,0 +1,47 @@
+﻿@using bambamWP.Models
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage ProtectedSessionStore
+@inject NavigationManager Navigation
+@inject IHttpClientFactory ClientFactory
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+@code {
+    protected override async Task OnInitializedAsync(){
+        var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
+        if (!storageResp.Success)
+        {
+            Console.WriteLine("BAD GUY KICKED OUT >:(");
+            Navigation.NavigateTo("/");
+        }
+
+        ResponseResult apiResp = new ResponseResult();
+        string theUrl = ApiEndpoints.apiVerificarAdmin;
+        Usuario theUsu = new Usuario();
+        theUsu.usuId = storageResp.Value;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(theUsu),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(theUrl, theData);
+
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            apiResp = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }
+        else
+        {
+            Console.WriteLine("ERROR AL SOLICITAR VERIFICAR TRABAJADOR");
+            Navigation.NavigateTo("/");
+        }
+
+        if (!apiResp.ok)
+        {
+            Console.WriteLine(apiResp.msg);
+            Navigation.NavigateTo("/");
+        }
+    }
+}

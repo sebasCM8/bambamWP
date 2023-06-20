@@ -1,0 +1,199 @@
+﻿@layout BambamLayout
+@page "/repartidores"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json;
+
+<style>
+    .cmbuttonuno {
+        background-color: green;
+        color: white;
+        border-style: hidden;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    button:hover.cmbuttonuno {
+        background-color: lightgreen;
+    }
+
+    .cmbutton {
+        background-color: #D4AF37;
+        color: white;
+        border-style: hidden;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    button:hover.cmbutton {
+        background-color: #ebce6e;
+    }
+
+    .cmrepsfila{
+        background-color: #D9D9D9;
+        border-radius: 10px;
+    }
+</style>
+
+<div class="row ms-2 mt-2">
+    <div class="col-12">
+        <h1>Repartidores</h1>
+    </div>
+</div>
+<div class="row ms-2">
+    <div class="col-4">
+        <input type="text" class="form-control" placeholder="Nombre..." />
+    </div>
+    <div class="col-3">
+        <input type="text" class="form-control" placeholder="CI..." />
+    </div>
+    <div class="col-2">
+        <button @onclick="nuevoRep" class="cmbuttonuno">BUSCAR</button>
+    </div>
+    <div class="col-2">
+        <button @onclick="nuevoRep" class="cmbutton">NUEVO</button>
+    </div>
+</div>
+@if(repartidores.Count() > 0){
+    <div class="row ms-2 mb-2 mt-5">
+        <div class="col-6">
+            <h3>Repartidores</h3>
+        </div>
+        <div class="col-4">
+            <h3>Estatus</h3>
+        </div>
+        <div class="col-2">
+            
+        </div>
+    </div>
+        @foreach(var rep in repartidores){
+        <div class="row ms-2 mb-3">
+            <div class="col-6 p-2 cmrepsfila">
+                <p>@rep.usuNombre @rep.usuApellido <br />
+                    CI: @rep.usuCI <br />
+                    Celular: @rep.usuCelular
+                </p>
+            </div>
+            <div class="col-4">
+                <p>Estatus</p>
+            </div>
+            <div class="col-2">
+                <button disabled="@loading" @onclick="() => elimBtn(rep.usuId)" class="btn btn-danger">eliminar</button>
+            </div>
+        </div>
+        }
+}else{
+    <h4>NO SE ENCUENTRAN REPARTIDORES</h4>
+}
+
+<LoginAuthAdmin />
+
+@code {
+    private string msgErr = "";
+    private List<Usuario> repartidores = new List<Usuario>();
+    private List<Usuario> fullReps = new List<Usuario>();
+    private bool loading = false;
+
+    protected override async Task OnInitializedAsync(){
+        await getReps();
+    }
+
+    private async Task getReps(){
+        RRObtRepartidores result = new RRObtRepartidores();
+        try{
+            result = await getRepartidores();
+        }catch(Exception e){
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if(!result.ok){
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }else{
+            if (result.repartidores != null)
+            {
+                fullReps = result.repartidores;
+                repartidores = result.repartidores;
+            }
+        }
+    }
+
+    private async Task<RRObtRepartidores> getRepartidores(){
+        RRObtRepartidores apiResp = new RRObtRepartidores();
+        try{
+            string theUrl = ApiEndpoints.apiObtenerRepartidores;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if(httpResponseMessage.IsSuccessStatusCode){
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtRepartidores>(responseStream);
+            }else{
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar reps al servidor";
+                return apiResp;
+            }
+        }catch(Exception e){
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task<ResponseResult> eliminarRepartidor(string usuId){
+        ResponseResult result = new ResponseResult();
+
+        string theUrl = ApiEndpoints.apiEliminarRepartidor;
+        Usuario usu = new Usuario();
+        usu.usuId = usuId;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(usu),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(theUrl, theData);
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            result = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }
+        else
+        {
+            result = new ResponseResult(false, "Excepcion al solicitar eliminar rep al servidor");
+            return result;
+        }
+
+        return result;
+    }
+
+    private async Task elimBtn(string usuId){
+        bool yesDelete = await JS.InvokeAsync<bool>("confirm", "Seguro que desea eliminar a" + usuId + "?");
+        if (!yesDelete) return;
+
+        loading = true;
+        ResponseResult procResp = new ResponseResult();
+        try{
+            procResp = await eliminarRepartidor(usuId);
+        }catch(Exception e){
+            procResp.ok = false;
+            procResp.msg = e.Message;
+        }
+        if(!procResp.ok){
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }else{
+            Usuario deletedUsu = fullReps.Find(usu => usu.usuId == usuId);
+            fullReps.Remove(deletedUsu);
+            repartidores = fullReps.ToList();
+        }
+
+        loading = false;
+    }
+
+    private void nuevoRep(){
+        Navigation.NavigateTo("/nuevoRepartidor");
+    }
+}

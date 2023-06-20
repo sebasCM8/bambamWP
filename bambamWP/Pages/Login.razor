@@ -1,0 +1,96 @@
+﻿@layout EmptyLayout
+@page "/"
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage ProtectedSessionStore
+@using bambamWP.Models
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<style>
+    body {
+        background-color: #848482;
+    }
+</style>
+
+<div class="cmlogintitle">
+    <h1>ENTIENDE ATIENDE Y VENDE</h1>
+    <h1> TIENDA <span>BAMBAM</span> </h1>
+</div>
+
+<div class="cmloginimagecont">
+    <img class="cmloginimage" src="images/bambamIcon.png" />
+</div>
+
+<div class="cmloginformcont">
+    <div class="mb-3">
+        <input type="text" @bind="usuario" class="form-control" id="usuarioTxt" placeholder="Usuario...">
+    </div>
+    <div class="mb-3">
+        <input type="password" @bind="password" class="form-control" id="passwordTxt" placeholder="Contraseña....">
+    </div>
+    <button @onclick="login" class="cmloginbutton">INGRESAR</button>
+</div>
+
+
+@code {
+    private Usuario usu = new Usuario();
+    private string usuario = "";
+    private string password = "";
+
+    protected override async Task OnInitializedAsync(){
+        var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
+        if(storageResp.Success){
+            Console.WriteLine("HELLO DEAR USER: " + storageResp.Value);
+            Navigation.NavigateTo("/home");
+        }
+    }
+
+    private async Task login(){
+        string msg = "";
+        if(usuario == ""){
+            msg = "Debe ingresar el usuario";
+            await JS.InvokeVoidAsync("Alert", msg);
+            return;
+        }
+        if(password == ""){
+            msg = "Debe ingrsar la contraseña";
+            await JS.InvokeVoidAsync("Alert", msg);
+            return;
+        }
+        usu.usuId = usuario;
+        usu.usuPass = password;
+        ResponseResult? apiResp = new ResponseResult();
+
+        string apiUrl = ApiEndpoints.apiLogin;
+        var usuItem = new StringContent(
+            JsonSerializer.Serialize(usu),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(apiUrl, usuItem);
+
+        if(httpResponseMessage.IsSuccessStatusCode){
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            apiResp = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }else{
+            msg = "Error al solicitar login al servidor";
+            await JS.InvokeVoidAsync("Alert", msg);
+            return;
+        }
+
+        if(!apiResp.ok){
+            msg = apiResp.msg;
+            await JS.InvokeVoidAsync("Alert", msg);
+            return;
+        }
+
+        await ProtectedSessionStore.SetAsync("usuId", usu.usuId);
+        Console.WriteLine("LOGGED AS USER: " + usu.usuId);
+        Navigation.NavigateTo("/home");
+    }
+}

@@ -1,0 +1,208 @@
+﻿@layout BambamLayout
+@page "/categorias"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json;
+
+<div class="row ms-2 mt-2">
+    <div class="col-12">
+        <h1>Categorias</h1>
+    </div>
+</div>
+<div class="row ms-2">
+    <div class="col-2">
+        <input type="text" @bind="catId" maxlength="5" class="form-control" placeholder="Codigo..." />
+    </div>
+    <div class="col-4">
+        <input type="text" class="form-control" @bind="catNombre" maxlength="150" placeholder="Nombre..." />
+    </div>
+    <div class="col-2">
+        <button @onclick="regbtn" disabled="@loading" class="cmbutton">NUEVO</button>
+    </div>
+</div>
+
+@if (categorias.Count() > 0)
+{
+    <div class="row ms-2 mb-2 mt-5">
+        <div class="col-2">
+            <h3>Codigo</h3>
+        </div>
+        <div class="col-7">
+            <h3>Nombre</h3>
+        </div>
+        <div class="col-3">
+        </div>
+    </div>
+    @foreach (var cat in categorias)
+    {
+        <div class="row ms-2 mb-3">
+            <div class="col-2">
+                @cat.catId
+            </div>
+            <div class="col-7">
+                @cat.catNombre
+            </div>
+            <div class="col-3">
+                <button disabled="@loading"  class="btn btn-danger">eliminar</button>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <h4>NO SE ENCUENTRAN CATEGORIAS</h4>
+}
+
+<LoginAuthAdmin />
+
+@code {
+    private string catId = "";
+    private string catNombre = "";
+    private bool loading = false;
+
+    private List<Categoria> categorias = new List<Categoria>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await getCats();
+    }
+
+    private async Task getCats()
+    {
+        RRObtCategorias result = new RRObtCategorias();
+        try
+        {
+            result = await getCategorias();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.categorias != null)
+            {
+                categorias = result.categorias;
+            }
+        }
+    }
+
+    private async Task<RRObtCategorias> getCategorias()
+    {
+        RRObtCategorias apiResp = new RRObtCategorias();
+        try
+        {
+            string theUrl = ApiEndpoints.apiObtenerCategorias;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtCategorias>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar cats al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task regbtn()
+    {
+        loading = true;
+        RRRegCategoria procResp = await registrar();
+        if (!procResp.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }
+        else
+        {
+            if(catId == ""){
+                Categoria nuevaCat = new Categoria();
+                nuevaCat.catId = procResp.categoriaId;
+                nuevaCat.catNombre = catNombre;
+                nuevaCat.catEstado = 1;
+                categorias.Add(nuevaCat);
+            }else{
+                foreach(Categoria c in categorias){
+                    if(c.catId == int.Parse(catId)){
+                        c.catNombre = catNombre;
+                    }
+                }
+            }
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+
+        }
+        loading = false;
+    }
+
+    private async Task<RRRegCategoria> registrar(){
+        RRRegCategoria result = new RRRegCategoria();
+
+        Categoria cat = new Categoria();
+        if (catId != "")
+        {
+            int id;
+            bool isInteger = int.TryParse(catId, out id);
+            if (!isInteger)
+            {
+                result.ok = false;
+                result.msg = "Codigo invalido, si desea crear una nueva categoria dejar vacio";
+                return result;
+            }
+            cat.catId = id;
+        }else {
+            cat.catId = 0;   
+        }
+
+        if(catNombre == ""){
+            result.ok = false;
+            result.msg = "Nombre no valido";
+            return result;
+        }
+        cat.catNombre = catNombre;
+        cat.catEstado = 1;
+
+        string apiUrl = ApiEndpoints.apiRegistrarCategoria;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(cat),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(apiUrl, theData);
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            result = await JsonSerializer.DeserializeAsync<RRRegCategoria>(responseStream);
+        }
+        else
+        {
+            result.ok = false;
+            result.msg = "Excepcion al sol reg cat al servidor";
+            return result;
+        }
+
+        return result;
+    }
+
+
+}

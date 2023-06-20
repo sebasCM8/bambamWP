@@ -1,0 +1,218 @@
+﻿@layout BambamLayout
+@page "/unidades"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json;
+
+
+<div class="row ms-2 mt-2">
+    <div class="col-12">
+        <h1>Unidades de medida</h1>
+    </div>
+</div>
+<div class="row ms-2">
+    <div class="col-2">
+        <input type="text" @bind="uniId" maxlength="5" class="form-control" placeholder="Codigo..." />
+    </div>
+    <div class="col-4">
+        <input type="text" class="form-control" @bind="uniNombre" maxlength="50" placeholder="Nombre..." />
+    </div>
+    <div class="col-2">
+        <button @onclick="regbtn" disabled="@loading" class="cmbutton">NUEVO</button>
+    </div>
+</div>
+
+@if (unidades.Count() > 0)
+{
+    <div class="row ms-2 mb-2 mt-5">
+        <div class="col-2">
+            <h3>Codigo</h3>
+        </div>
+        <div class="col-7">
+            <h3>Nombre</h3>
+        </div>
+        <div class="col-3">
+        </div>
+    </div>
+    @foreach (var uni in unidades)
+    {
+        <div class="row ms-2 mb-3">
+            <div class="col-2">
+                @uni.uniId
+            </div>
+            <div class="col-7">
+                @uni.uniNombre
+            </div>
+            <div class="col-3">
+                <button disabled="@loading" class="btn btn-danger">eliminar</button>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <h4>NO SE ENCUENTRAN UNIDADES DE MEDIDA</h4>
+}
+
+<LoginAuthAdmin />
+
+@code {
+    private string uniId = "";
+    private string uniNombre = "";
+    private bool loading = false;
+
+    private List<Unidad> unidades = new List<Unidad>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await getUnis();
+    }
+
+    private async Task getUnis()
+    {
+        RRObtUnidades result = new RRObtUnidades();
+        try
+        {
+            result = await getUnidades();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.unidades != null)
+            {
+                unidades = result.unidades;
+            }
+        }
+    }
+
+    private async Task<RRObtUnidades> getUnidades()
+    {
+        RRObtUnidades apiResp = new RRObtUnidades();
+        try
+        {
+            string theUrl = ApiEndpoints.apiObtenerUnidades;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtUnidades>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar unidades al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task regbtn()
+    {
+        loading = true;
+        RRRegUnidad procResp = await registrar();
+        if (!procResp.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }
+        else
+        {
+            if (uniId == "")
+            {
+                Unidad nuevaUni = new Unidad();
+                nuevaUni.uniId = procResp.unidadId;
+                nuevaUni.uniNombre = uniNombre;
+                nuevaUni.uniEstado = 1;
+                unidades.Add(nuevaUni);
+            }
+            else
+            {
+                foreach (Unidad u in unidades)
+                {
+                    if (u.uniId == int.Parse(uniId))
+                    {
+                        u.uniNombre = uniNombre;
+                    }
+                }
+            }
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+
+        }
+        loading = false;
+    }
+
+    private async Task<RRRegUnidad> registrar()
+    {
+        RRRegUnidad result = new RRRegUnidad();
+
+        Unidad uni = new Unidad();
+        if (uniId != "")
+        {
+            int id;
+            bool isInteger = int.TryParse(uniId, out id);
+            if (!isInteger)
+            {
+                result.ok = false;
+                result.msg = "Codigo invalido, si desea crear una nueva unidad de medida dejar vacio";
+                return result;
+            }
+            uni.uniId = id;
+        }
+        else
+        {
+            uni.uniId = 0;
+        }
+
+        if (uniNombre == "")
+        {
+            result.ok = false;
+            result.msg = "Nombre no valido";
+            return result;
+        }
+        uni.uniNombre = uniNombre;
+        uni.uniEstado = 1;
+
+        string apiUrl = ApiEndpoints.apiRegistrarUnidad;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(uni),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(apiUrl, theData);
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            result = await JsonSerializer.DeserializeAsync<RRRegUnidad>(responseStream);
+        }
+        else
+        {
+            result.ok = false;
+            result.msg = "Excepcion al sol reg uni al servidor";
+            return result;
+        }
+
+        return result;
+    }
+
+
+}

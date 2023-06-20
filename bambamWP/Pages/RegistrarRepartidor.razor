@@ -1,0 +1,185 @@
+﻿@layout BambamLayout
+@page "/nuevoRepartidor"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json
+
+<style>
+    .cmheadcont{
+        padding: 1rem;
+    }
+
+    .cmbutton {
+        background-color: #D4AF37;
+        color: white;
+        border-style: hidden;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    button:hover.cmbutton {
+        background-color: #ebce6e;
+    }
+</style>
+
+<div class="cmheadcont">
+    <h1>Registrar Repartidor</h1>
+</div>
+
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="nombretxt" class="col-form-label">Nombre</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" maxlength="40" @bind="Nombre" id="nombretxt" class="form-control" placeholder="Nombre...." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="apellidotxt" class="col-form-label">Apellidos</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="Apellido" maxlength="40" id="apellidotxt" class="form-control" placeholder="Apellidos..." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="citxt" class="col-form-label">CI</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="CI" maxlength="10" id="citxt" class="form-control" placeholder="CI..." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="celulartxt" class="col-form-label">Celular</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="Celular" maxlength="10" id="celulartxt" class="form-control" placeholder="Celular...." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="usuariotxt" class="col-form-label">Usuario</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="Id" id="usuariotxt" maxlength="20" class="form-control" placeholder="Usuario..." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="passtxt" class="col-form-label">Contraseña</label>
+    </div>
+    <div class="col-auto">
+        <input type="password" @bind="Pass" id="passtxt" maxlength="40" class="form-control" placeholder="Contraseña..." />
+    </div>
+</div>
+
+<button disabled="@loading" @onclick="regbtn" class="cmbutton ms-5">REGISTRAR</button>
+
+<LoginAuthAdmin />
+
+@code {
+    private Usuario usu = new Usuario();
+    private string Id = "";
+    private string Pass = "";
+    private string Nombre = "";
+    private string Apellido = "";
+    private string Celular = "";
+    private string CI = "";
+
+    private bool loading = false;
+
+    private async Task regbtn(){
+        loading = true;
+        ResponseResult procResp = await registrar();
+        if(!procResp.ok){
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }else{
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+            Console.WriteLine("REPARTIDOR " + usu.usuId + "REGISTRADO");
+            Navigation.NavigateTo("/repartidores");
+        }
+        loading = false;
+    }
+
+    private async Task<ResponseResult> registrar(){
+        ResponseResult result = new ResponseResult();
+
+        if(Id == "" || Id.Contains(" ")){
+            result = new ResponseResult(false, "Usuario no valido");
+            return result;
+        }
+
+        if (Pass == "" || Pass.Contains(" "))
+        {
+            result = new ResponseResult(false, "Password no valida");
+            return result;
+        }
+
+        if (Nombre == "")
+        {
+            result = new ResponseResult(false, "Nombre no valido");
+            return result;
+        }
+
+        if (Apellido == "")
+        {
+            result = new ResponseResult(false, "Apellidos no validos");
+            return result;
+        }
+
+        int theCelular;
+        var isInteger = int.TryParse(Celular, out theCelular);
+        if(!isInteger){
+            result = new ResponseResult(false, "Celular no valido");
+            return result;
+        }
+
+        int theCI;
+        var isIntegerDos = int.TryParse(CI, out theCI);
+        if (!isIntegerDos)
+        {
+            result = new ResponseResult(false, "CI no valido");
+            return result;
+        }
+
+        usu.usuId = Id;
+        usu.usuNombre = Nombre;
+        usu.usuApellido = Apellido;
+        usu.usuCI = CI;
+        usu.usuCelular = Celular;
+        usu.usuPass = Pass;
+        usu.usuEstado = 1;
+
+        ResponseResult? apiResp = new ResponseResult();
+
+        string apiUrl = ApiEndpoints.apiRegistrarRep;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(usu),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(apiUrl, theData);
+
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            apiResp = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }
+        else
+        {
+            result = new ResponseResult(false, "Excepcion al solicitar regRep al servidor");
+            return result;
+        }
+
+        result = apiResp;
+        return result;
+    }
+}
+

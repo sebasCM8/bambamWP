@@ -1,0 +1,18 @@
+﻿@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage ProtectedSessionStore
+@inject NavigationManager Navigation
+@inject IHttpClientFactory ClientFactory
+
+@using bambamWP.Models
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+@code {
+    protected override async Task OnInitializedAsync(){
+        var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
+        if(!storageResp.Success){
+            Console.WriteLine("BAD GUY KICKED OUT >:(");
+            Navigation.NavigateTo("/");
+        }
+    }
+}
