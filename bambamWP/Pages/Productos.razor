@@ -1,0 +1,224 @@
+﻿@layout BambamLayout
+@page "/productos"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json;
+
+<style>
+    .cmbutton {
+        background-color: #D4AF37;
+        color: white;
+        border-style: hidden;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    button:hover.cmbutton {
+        background-color: #ebce6e;
+    }
+
+    .cmrepsfila {
+        background-color: #D9D9D9;
+        border-radius: 10px;
+    }
+</style>
+
+<div class="row ms-2 mt-2">
+    <div class="col-12">
+        <h1>Productos</h1>
+    </div>
+</div>
+<div class="row ms-2">
+    <div class="col-4">
+        <input type="text" class="form-control" placeholder="Nombre..." />
+    </div>
+</div>
+<div class="row ms-2 mt-2">
+    <div class="col-auto">
+        <div class="col-2">
+            <button @onclick="nuevoprod" class="cmbutton">NUEVO</button>
+        </div>
+    </div>
+</div>
+
+@if (productos.Count() > 0)
+{
+    <div class="row ms-2 mb-2 mt-5">
+        <div class="col-5">
+            <h3>Productos</h3>
+        </div>
+        <div class="col-2 text-center">
+            <h3>Precio</h3>
+        </div>
+        <div class="col-2 text-center">
+            <h3>Stock</h3>
+        </div>
+        <div class="col-3">
+        </div>
+    </div>
+    @foreach (var prod in productos)
+    {
+        <div class="row ms-2 mb-3">
+            <div class="col-5 p-1 cmrepsfila">
+                <p>
+                    @prod.proId - @prod.proNombre <br />
+                    Unidad de medida: @prod.proUniNombre <br />
+                    Categoria: @prod.proCatNombre
+                </p>
+            </div>
+            <div class="col-2 text-center">
+                <p>@prod.proPrecio</p>
+            </div>
+            <div class="col-2 text-center">
+                <p>stock</p>
+            </div>
+            <div class="col-3">
+                <button disabled="@loading" @onclick="() => editarProd(prod)" class="btn btn-primary">editar</button>
+                <button disabled="@loading" @onclick="() => elimBtn(prod.proId)" class="btn btn-danger">eliminar</button>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <h4>NO SE ENCUENTRAN PRODUCTOS</h4>
+}
+
+<LoginAuthAdmin />
+
+@code {
+    private bool loading = false;
+
+    private List<Producto> productos = new List<Producto>();
+    private List<Producto> fullProd = new List<Producto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await getProds();
+    }
+
+    private async Task getProds()
+    {
+        RRObtProductos result = new RRObtProductos();
+        try
+        {
+            result = await getProductos();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.productos != null)
+            {
+                fullProd = result.productos;
+                productos = result.productos;
+            }
+        }
+    }
+
+    private async Task<RRObtProductos> getProductos()
+    {
+        RRObtProductos apiResp = new RRObtProductos();
+        try
+        {
+            string theUrl = ApiEndpoints.apiObtenerProductos;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtProductos>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar prods al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task elimBtn(int prodId){
+        bool yesDelete = await JS.InvokeAsync<bool>("confirm", "Seguro que desea eliminar el producto " + prodId + "?");
+        if (!yesDelete) return;
+
+        loading = true;
+        ResponseResult procResp = new ResponseResult();
+        try
+        {
+            procResp = await eliminarProducto(prodId);
+        }
+        catch (Exception e)
+        {
+            procResp.ok = false;
+            procResp.msg = e.Message;
+        }
+        if (!procResp.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }
+        else
+        {
+            Producto deletedProd = fullProd.Find(prod => prod.proId == prodId);
+            fullProd.Remove(deletedProd);
+            productos = fullProd.ToList();
+        }
+
+        loading = false;
+    }
+
+    private async Task<ResponseResult> eliminarProducto(int proId)
+    {
+        ResponseResult result = new ResponseResult();
+
+        string theUrl = ApiEndpoints.apiEliminarProducto;
+        Producto prod = new Producto();
+        prod.proId = proId;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(prod),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(theUrl, theData);
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            result = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }
+        else
+        {
+            result = new ResponseResult(false, "Excepcion al solicitar eliminar prod al servidor");
+            return result;
+        }
+
+        return result;
+    }
+
+    private void editarProd(Producto prod){
+        string theUrl = "/editarProducto/" + prod.proId.ToString();
+        Navigation.NavigateTo(theUrl);
+    }
+
+    private void nuevoprod(){
+        Navigation.NavigateTo("/nuevoProducto");
+    }
+}

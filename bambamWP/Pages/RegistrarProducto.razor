@@ -1,0 +1,257 @@
+﻿@layout BambamLayout
+@page "/nuevoProducto"
+
+@inject IJSRuntime JS
+@inject IHttpClientFactory ClientFactory
+@inject NavigationManager Navigation
+@using bambamWP.Models
+@using System.Text.Json;
+
+<style>
+    .cmheadcont {
+        padding: 1rem;
+    }
+
+    .cmbutton {
+        background-color: #D4AF37;
+        color: white;
+        border-style: hidden;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+    }
+
+    button:hover.cmbutton {
+        background-color: #ebce6e;
+    }
+</style>
+
+<div class="cmheadcont">
+    <h1>Registrar Producto</h1>
+</div>
+
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="nombretxt" class="col-form-label">Nombre</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" maxlength="100" @bind="prodNombre" id="nombretxt" class="form-control" placeholder="Nombre...." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="desctxt" class="col-form-label">Descripcion</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="prodDesc" maxlength="250" id="desctxt" class="form-control" placeholder="Descripcion..." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="preciotxt" class="col-form-label">Precio</label>
+    </div>
+    <div class="col-auto">
+        <input type="text" @bind="prodPrecio" maxlength="10" id="preciotxt" class="form-control" placeholder="Precio..." />
+    </div>
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="unidadslct" class="col-form-label">Unidad de medida</label>
+    </div>
+    @if(unidades.Count() > 0){
+        <div class="col-auto">
+            <select id="unidadslct" @bind="prodUni" class="form-select">
+                @foreach (var uni in unidades)
+                {
+                    <option value="@uni.uniId">@uni.uniNombre</option>
+                }
+            </select>
+        </div>
+    }
+</div>
+<div class="row mb-3 ms-3">
+    <div class="col-auto">
+        <label for="categoriaslct" class="col-form-label">Categoria</label>
+    </div>
+    @if (unidades.Count() > 0)
+    {
+        <div class="col-auto">
+            <select id="categoriaslct" @bind="prodCat" class="form-select">
+                @foreach(var cat in categorias)
+                {
+                    <option value="@cat.catId">@cat.catNombre</option>
+                }
+            </select>
+        </div>
+    }
+</div>
+
+<button disabled="@loading" @onclick="regbtn" class="cmbutton ms-5">REGISTRAR</button>
+
+<LoginAuthAdmin />
+
+@code {
+    private string prodNombre = "";
+    private string prodDesc = "";
+    private string prodPrecio = "";
+    private string prodUni = "";
+    private string prodCat = "";
+
+    private bool loading = false;
+
+    private List<Categoria> categorias = new List<Categoria>();
+    private List<Unidad> unidades = new List<Unidad>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await getCatsUnis();
+    }
+
+    private async Task getCatsUnis()
+    {
+        RRObtCatsUnis result = new RRObtCatsUnis();
+        try
+        {
+            result = await getCategoriasUnidades();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.unidades != null)
+            {
+                unidades = result.unidades;
+            }
+            if(result.categorias != null){
+                categorias = result.categorias;
+            }
+        }
+    }
+
+    private async Task<RRObtCatsUnis> getCategoriasUnidades()
+    {
+        RRObtCatsUnis apiResp = new RRObtCatsUnis();
+        try
+        {
+            string theUrl = ApiEndpoints.apiObtenerCatUni;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtCatsUnis>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar cats y unis al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task regbtn()
+    {
+        loading = true;
+        ResponseResult procResp = await registrar();
+        if (!procResp.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+            Navigation.NavigateTo("/productos");
+        }
+        loading = false;
+    }
+
+    private async Task<ResponseResult> registrar()
+    {
+        ResponseResult result = new ResponseResult();
+
+        if (prodNombre == "")
+        {
+            result = new ResponseResult(false, "Nombre no valido");
+            return result;
+        }
+
+        if (prodDesc == "")
+        {
+            result = new ResponseResult(false, "Descripcion no valida");
+            return result;
+        }
+
+        if(prodPrecio == ""){
+            result = new ResponseResult(false, "Precio no valido");
+            return result;
+        }
+        decimal thePrecio;
+        var isDecimal = decimal.TryParse(prodPrecio, out thePrecio);
+        if (!isDecimal)
+        {
+            result = new ResponseResult(false, "Precio no valido");
+            return result;
+        }
+
+        if(prodUni == ""){
+            result = new ResponseResult(false, "Debe seleccionar unidad de medida");
+            return result;
+        }
+        if (prodCat == "")
+        {
+            result = new ResponseResult(false, "Debe seleccionar categoria");
+            return result;
+        }
+
+
+        Producto nuevoProd = new Producto();
+        nuevoProd.proNombre = prodNombre;
+        nuevoProd.proDesc = prodDesc;
+        nuevoProd.proPrecio = decimal.Parse(prodPrecio);
+        nuevoProd.proCat = int.Parse(prodCat);
+        nuevoProd.proUni = int.Parse(prodUni);
+        nuevoProd.proEstado = 1;
+
+
+        ResponseResult? apiResp = new ResponseResult();
+
+        string apiUrl = ApiEndpoints.apiRegistrarProducto;
+        var theData = new StringContent(
+            JsonSerializer.Serialize(nuevoProd),
+            System.Text.Encoding.UTF8,
+            System.Net.Mime.MediaTypeNames.Application.Json
+        );
+
+        var client = ClientFactory.CreateClient();
+        using var httpResponseMessage = await client.PostAsync(apiUrl, theData);
+
+        if (httpResponseMessage.IsSuccessStatusCode)
+        {
+            using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+            apiResp = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+        }
+        else
+        {
+            result = new ResponseResult(false, "Excepcion al solicitar regProd al servidor");
+            return result;
+        }
+
+        result = apiResp;
+        return result;
+    }
+}
