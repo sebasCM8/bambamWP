@@ -2,6 +2,7 @@
 @inject ProtectedLocalStorage ProtectedSessionStore
 @inject NavigationManager Navigation
 @inject IHttpClientFactory ClientFactory
+@inject IConfiguration Configuration
 
 @using bambamWP.Models
 @using System.Text.Json
@@ -11,8 +12,12 @@
     protected override async Task OnInitializedAsync(){
         var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
         if(!storageResp.Success){
-            Console.WriteLine("BAD GUY KICKED OUT >:(");
-            Navigation.NavigateTo("/");
+
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/" :
+            "/";
+
+            Navigation.NavigateTo(theurl);
         }
     }
 }

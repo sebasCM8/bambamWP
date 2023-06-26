@@ -1,0 +1,381 @@
+﻿@layout BambamLayout
+@page "/ingreso"
+
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage ProtectedSessionStore
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@using System.Globalization
+@using bambamWP.Models
+@inject IHttpClientFactory ClientFactory
+@inject IJSRuntime JS
+@using System.Text.Json
+
+<div class="ms-3 mb-3">
+    <h3>Nuevo Ingreso</h3>
+</div>
+<div class="row mb-3">
+    <div class="col-auto ms-3">
+        <h4>Productos</h4>
+    </div>
+    @if(categorias.Any()){
+        <div class="col-auto">
+            <select id="categoriaslct" @onchange="OnSelectChangeCategoria" class="form-select">
+                @foreach (var cat in categorias)
+                {
+                    <option value="@cat.catId">@cat.catNombre</option>
+                }
+            </select>
+        </div>
+    }
+    @if (unidades.Any())
+    {
+        <div class="col-auto">
+            <select id="unidadslct" @onchange="OnSelectChangeUnidad" class="form-select">
+                @foreach (var uni in unidades)
+                {
+                    <option value="@uni.uniId">@uni.uniNombre</option>
+                }
+            </select>
+        </div>
+    }
+</div>
+@if (filtredProds.Count() > 0)
+{
+    @foreach (var prod in filtredProds)
+    {
+        <div class="row ms-2 mb-2">
+            <div class="col-6">
+                <p>
+                    @prod.proId - @prod.proNombre - 
+                    @prod.proUniNombre -
+                    @prod.proCatNombre
+                </p>
+            </div>
+            <div class="col-3">
+                <button @onclick="() => selectProd(prod)" class="btn btn-primary">SELECCIONAR</button>
+            </div>
+        </div>
+    }
+}
+
+<div class="ms-3 mb-3">
+    <h4>Seleccionados</h4>
+</div>
+@if (selectedProds.Count() > 0)
+{
+    @foreach (var prod in selectedProds)
+    {
+        <div class="row ms-2 mb-2">
+            <div class="col-4">
+                <p>
+                    @prod.ieProdResume
+                </p>
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control" @bind="prod.ieCantidadstr" placeholder="Cantidad"/>
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control" @bind="prod.iePreciostr" placeholder="Precio" />
+            </div>
+            <div class="col-2">
+                <input type="text" class="form-control" @bind="prod.ieFvtostr" placeholder="Fecha vto en formato dia-mes-año" />
+            </div>
+            <div class="col-2">
+                <button @onclick="() => quitarProd(prod)" class="btn btn-secondary">QUITAR</button>
+            </div>
+        </div>
+    }
+}
+
+<div class="ms-3 mt-3">
+    <button disabled="@loading" @onclick="regbtn" class="btn btn-success">REGISTRAR INGRESO</button>
+</div>
+
+<LoginAuthAdmin />
+
+@code {
+    private List<Categoria> categorias = new List<Categoria>();
+    private List<Unidad> unidades = new List<Unidad>();
+    private List<Producto> fullProds = new List<Producto>();
+    private List<Producto> filtredProds = new List<Producto>();
+    private List<Ineg> selectedProds = new List<Ineg>();
+
+    private string prodCat = "";
+    private string prodUni = "";
+    bool loading = false;
+
+    private async Task regbtn(){
+        loading = true;
+
+        ResponseResult procResp = new ResponseResult();
+        try{
+            procResp = await registrar();
+        }catch(Exception e){
+            procResp.ok = false;
+            procResp.msg = e.Message;
+        }
+        if (!procResp.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+        }else{
+            await JS.InvokeVoidAsync("Alert", procResp.msg);
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/geststock" : 
+            "/geststock";
+            Navigation.NavigateTo(theurl);
+        }
+
+        loading = false;
+    }
+
+    private async Task<ResponseResult> registrar(){
+        ResponseResult result = new ResponseResult();
+
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiNuevoIngreso;
+
+        foreach(Ineg ineg in selectedProds){
+            Console.WriteLine($"{ineg.ieProdResume} - {ineg.ieCantidadstr} - {ineg.iePreciostr} - {ineg.ieFvtostr}");
+
+            decimal thePrecio;
+            var isDecimal = decimal.TryParse(ineg.iePreciostr, out thePrecio);
+            if (!isDecimal)
+            {
+                result = new ResponseResult(false, "Precio no valido");
+                return result;
+            }
+            decimal theCantidad;
+            var isDecimaldos = decimal.TryParse(ineg.ieCantidadstr, out theCantidad);
+            if (!isDecimaldos)
+            {
+                result = new ResponseResult(false, "Cantidad no valida");
+                return result;
+            }
+            DateTime theDate;
+            bool isValidDate = DateTime.TryParseExact(ineg.ieFvtostr, BambamConstant.bbdateformat, 
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out theDate);
+            if(!isValidDate){
+                result = new ResponseResult(false, "Fecha de vencimiento no valida");
+                return result;
+            }
+
+            ineg.iePrecio = thePrecio;
+            ineg.ieCant = theCantidad;
+            ineg.ieFvto = theDate;
+
+            var theData = new StringContent(
+                JsonSerializer.Serialize(ineg),
+                System.Text.Encoding.UTF8,
+                System.Net.Mime.MediaTypeNames.Application.Json
+            );
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.PostAsync(apiUrl, theData);
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                result = await JsonSerializer.DeserializeAsync<ResponseResult>(responseStream);
+            }
+            else
+            {
+                result = new ResponseResult(false, "Excepcion al solicitar regProd al servidor");
+                return result;
+            }
+            if(!result.ok){
+                return result;
+            }
+
+        }
+        return result;
+    }
+
+    private void OnSelectChangeUnidad(ChangeEventArgs e){
+        prodUni = e.Value.ToString();
+        applyFilter();
+    }
+    private void OnSelectChangeCategoria(ChangeEventArgs e){
+        prodCat = e.Value.ToString();
+        applyFilter();
+    }
+    private void applyFilter() {
+        bool changemade = false;
+        if (prodUni != "0") {
+            changemade = true;
+            filtredProds.Clear();
+            foreach (Producto p in fullProds) {
+                if (p.proUni == int.Parse(prodUni)) {
+                    filtredProds.Add(p);
+                }
+            }
+        }
+
+        if (prodCat != "0") {
+            List<Producto> lsrc = changemade ? 
+            new List<Producto>(filtredProds) : 
+            new List<Producto>(fullProds);
+            changemade = true;
+            filtredProds.Clear();
+            foreach (Producto p in lsrc) {
+                if (p.proCat == int.Parse(prodCat)) {
+                    filtredProds.Add(p);
+                }
+            }
+        }
+
+        if (!changemade){
+            filtredProds = fullProds.ToList();
+        }
+    }
+
+    private void selectProd(Producto prd){
+        Ineg? x = selectedProds.Find(ie => ie.iePro == prd.proId);
+        if(x == null){
+            Ineg nuIneg = new Ineg();
+            nuIneg.iePro = prd.proId;
+            nuIneg.ieTipo = BambamConstant.bbingreso;
+            nuIneg.ieEstado = 1;
+            nuIneg.ieProdResume = $"{prd.proId} - {prd.proNombre} - {prd.proUniNombre} - {prd.proCatNombre}";
+            selectedProds.Add(nuIneg);
+        }
+    }
+
+    private void quitarProd(Ineg prod){
+        Ineg? x = selectedProds.Find(ie => ie.iePro == prod.iePro);
+        if(x != null){
+            selectedProds.Remove(x);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await getCatsUnis();
+        await getProds();
+    }
+
+    private async Task getCatsUnis()
+    {
+        RRObtCatsUnis result = new RRObtCatsUnis();
+        try
+        {
+            result = await getCategoriasUnidades();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.unidades != null)
+            {
+                Unidad todouni = new Unidad();
+                todouni.uniId = 0;
+                todouni.uniNombre = "TODAS";
+                unidades.Add(todouni);
+                unidades.AddRange(result.unidades);
+                prodUni = "0";
+            }
+            if (result.categorias != null)
+            {
+                Categoria todocat = new Categoria();
+                todocat.catId = 0;
+                todocat.catNombre = "TODAS";
+                categorias.Add(todocat);
+                categorias.AddRange(result.categorias);
+                prodCat = "0";
+            }
+        }
+    }
+
+    private async Task<RRObtCatsUnis> getCategoriasUnidades()
+    {
+        RRObtCatsUnis apiResp = new RRObtCatsUnis();
+        try
+        {
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerCatUni;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtCatsUnis>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar cats y unis al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+
+    private async Task getProds()
+    {
+        RRObtProductos result = new RRObtProductos();
+        try
+        {
+            result = await getProductos();
+        }
+        catch (Exception e)
+        {
+            result.ok = false;
+            result.msg = e.Message;
+        }
+
+        if (!result.ok)
+        {
+            await JS.InvokeVoidAsync("Alert", result.msg);
+        }
+        else
+        {
+            if (result.productos != null)
+            {
+                fullProds = result.productos.ToList();
+                filtredProds = result.productos.ToList();
+            }
+        }
+    }
+
+    private async Task<RRObtProductos> getProductos()
+    {
+        RRObtProductos apiResp = new RRObtProductos();
+        try
+        {
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerProductos;
+            var client = ClientFactory.CreateClient();
+            using var httpResponseMessage = await client.GetAsync(theUrl);
+
+            if (httpResponseMessage.IsSuccessStatusCode)
+            {
+                using var responseStream = await httpResponseMessage.Content.ReadAsStreamAsync();
+                apiResp = await JsonSerializer.DeserializeAsync<RRObtProductos>(responseStream);
+            }
+            else
+            {
+                apiResp.ok = false;
+                apiResp.msg = "Error al solicitar prods al servidor";
+                return apiResp;
+            }
+        }
+        catch (Exception e)
+        {
+            apiResp.ok = false;
+            apiResp.msg = e.Message;
+        }
+        return apiResp;
+    }
+}

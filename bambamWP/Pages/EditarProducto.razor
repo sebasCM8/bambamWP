@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json;
+@inject IConfiguration Configuration
 
 <style>
     .cmheadcont {
@@ -141,7 +142,8 @@
         Producto proX = new Producto();
         proX.proId = int.Parse(prodId);
 
-        string apiUrl = ApiEndpoints.apiObtProducto;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiObtProducto;
         var theData = new StringContent(
             JsonSerializer.Serialize(proX),
             System.Text.Encoding.UTF8,
@@ -201,7 +203,8 @@
         RRObtCatsUnis apiResp = new RRObtCatsUnis();
         try
         {
-            string theUrl = ApiEndpoints.apiObtenerCatUni;
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerCatUni;
             var client = ClientFactory.CreateClient();
             using var httpResponseMessage = await client.GetAsync(theUrl);
 
@@ -236,7 +239,11 @@
         else
         {
             await JS.InvokeVoidAsync("Alert", procResp.msg);
-            Navigation.NavigateTo("/productos");
+
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/productos" :
+            "/productos";
+            Navigation.NavigateTo(theurl);
         }
         loading = false;
     }
@@ -290,7 +297,8 @@
         editedProd.proCat = int.Parse(prodCat);
         editedProd.proUni = int.Parse(prodUni);
 
-        string apiUrl = ApiEndpoints.apiEditarProducto;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiEditarProducto;
         var theData = new StringContent(
             JsonSerializer.Serialize(editedProd),
             System.Text.Encoding.UTF8,

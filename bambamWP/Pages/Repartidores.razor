@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json;
+@inject IConfiguration Configuration
 
 <style>
     .cmbuttonuno {
@@ -124,7 +125,8 @@
     private async Task<RRObtRepartidores> getRepartidores(){
         RRObtRepartidores apiResp = new RRObtRepartidores();
         try{
-            string theUrl = ApiEndpoints.apiObtenerRepartidores;
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerRepartidores;
             var client = ClientFactory.CreateClient();
             using var httpResponseMessage = await client.GetAsync(theUrl);
 
@@ -146,7 +148,8 @@
     private async Task<ResponseResult> eliminarRepartidor(string usuId){
         ResponseResult result = new ResponseResult();
 
-        string theUrl = ApiEndpoints.apiEliminarRepartidor;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string theUrl = apiManager.apiEliminarRepartidor;
         Usuario usu = new Usuario();
         usu.usuId = usuId;
         var theData = new StringContent(
@@ -194,6 +197,10 @@
     }
 
     private void nuevoRep(){
-        Navigation.NavigateTo("/nuevoRepartidor");
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+        "/" + Configuration[BambamConstant.bbappname] + "/nuevoRepartidor" :
+        "/nuevoRepartidor";
+
+        Navigation.NavigateTo(theurl);
     }
 }

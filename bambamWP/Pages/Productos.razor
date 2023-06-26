@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json;
+@inject IConfiguration Configuration
 
 <style>
     .cmbutton {
@@ -73,7 +74,7 @@
                 <p>@prod.proPrecio</p>
             </div>
             <div class="col-2 text-center">
-                <p>stock</p>
+                <p>@prod.proStock</p>
             </div>
             <div class="col-3">
                 <button disabled="@loading" @onclick="() => editarProd(prod)" class="btn btn-primary">editar</button>
@@ -132,7 +133,8 @@ else
         RRObtProductos apiResp = new RRObtProductos();
         try
         {
-            string theUrl = ApiEndpoints.apiObtenerProductos;
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerProductos;
             var client = ClientFactory.CreateClient();
             using var httpResponseMessage = await client.GetAsync(theUrl);
 
@@ -189,7 +191,8 @@ else
     {
         ResponseResult result = new ResponseResult();
 
-        string theUrl = ApiEndpoints.apiEliminarProducto;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string theUrl = apiManager.apiEliminarProducto;
         Producto prod = new Producto();
         prod.proId = proId;
         var theData = new StringContent(
@@ -214,11 +217,18 @@ else
     }
 
     private void editarProd(Producto prod){
-        string theUrl = "/editarProducto/" + prod.proId.ToString();
+        string theUrl = Configuration[BambamConstant.bbappname] != "" ?
+        "/" + Configuration["cmappname"] + "/editarProducto/" + prod.proId.ToString() :
+        "/editarProducto/" + prod.proId.ToString();
+
         Navigation.NavigateTo(theUrl);
     }
 
     private void nuevoprod(){
-        Navigation.NavigateTo("/nuevoProducto");
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+        "/" + Configuration[BambamConstant.bbappname] + "/nuevoProducto" :
+        "/nuevoProducto";
+
+        Navigation.NavigateTo(theurl);
     }
 }

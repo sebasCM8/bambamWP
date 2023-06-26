@@ -1,5 +1,6 @@
 ﻿@layout EmptyLayout
 @page "/"
+@inject IConfiguration Configuration
 @inject IJSRuntime JS
 @inject IHttpClientFactory ClientFactory
 @inject NavigationManager Navigation
@@ -44,7 +45,12 @@
         var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
         if(storageResp.Success){
             Console.WriteLine("HELLO DEAR USER: " + storageResp.Value);
-            Navigation.NavigateTo("/home");
+
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/home" :
+            "/home";
+
+            Navigation.NavigateTo(theurl);
         }
     }
 
@@ -64,7 +70,8 @@
         usu.usuPass = password;
         ResponseResult? apiResp = new ResponseResult();
 
-        string apiUrl = ApiEndpoints.apiLogin;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiLogin;
         var usuItem = new StringContent(
             JsonSerializer.Serialize(usu),
             System.Text.Encoding.UTF8,
@@ -91,6 +98,11 @@
 
         await ProtectedSessionStore.SetAsync("usuId", usu.usuId);
         Console.WriteLine("LOGGED AS USER: " + usu.usuId);
-        Navigation.NavigateTo("/home");
+
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/home" :
+            "/home";
+
+        Navigation.NavigateTo(theurl);
     }
 }

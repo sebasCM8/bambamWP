@@ -3,9 +3,9 @@
 
 @inject IJSRuntime JS
 @inject IHttpClientFactory ClientFactory
-@inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json;
+@inject IConfiguration Configuration
 
 <div class="row ms-2 mt-2">
     <div class="col-12">
@@ -101,7 +101,8 @@ else
         RRObtCategorias apiResp = new RRObtCategorias();
         try
         {
-            string theUrl = ApiEndpoints.apiObtenerCategorias;
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerCategorias;
             var client = ClientFactory.CreateClient();
             using var httpResponseMessage = await client.GetAsync(theUrl);
 
@@ -181,7 +182,8 @@ else
         cat.catNombre = catNombre;
         cat.catEstado = 1;
 
-        string apiUrl = ApiEndpoints.apiRegistrarCategoria;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiRegistrarCategoria;
         var theData = new StringContent(
             JsonSerializer.Serialize(cat),
             System.Text.Encoding.UTF8,

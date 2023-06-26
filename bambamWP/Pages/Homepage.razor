@@ -4,6 +4,8 @@
 @using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @inject ProtectedLocalStorage ProtectedSessionStore
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@using bambamWP.Models
 
 <h3>Homepage</h3>
 
@@ -13,6 +15,9 @@
     </div>
     <div class="col-auto m-3">
         <button @onclick="unidades">Unidades</button>
+    </div>
+    <div class="col-auto m-3">
+        <button @onclick="geststock">Gestionar stock</button>
     </div>
 </div>
 <br />
@@ -24,15 +29,31 @@
 @code {
     private async Task logout(){
         await ProtectedSessionStore.DeleteAsync("usuId");
-        Console.WriteLine("GOODBYE DEAR USER");
-        Navigation.NavigateTo("/");
+
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/" :
+            "/";
+        Navigation.NavigateTo(theurl);
     }
 
     private void categorias(){
-        Navigation.NavigateTo("/categorias");
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/categorias" :
+            "/categorias";
+        Navigation.NavigateTo(theurl);
     }
 
     private void unidades(){
-        Navigation.NavigateTo("/unidades");
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/unidades" :
+            "/unidades";
+        Navigation.NavigateTo(theurl);
+    }
+
+    private void geststock(){
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/geststock" :
+            "/geststock";
+            Navigation.NavigateTo(theurl);
     }
 }

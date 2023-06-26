@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json
+@inject IConfiguration Configuration
 
 <style>
     .cmheadcont{
@@ -100,8 +101,11 @@
             await JS.InvokeVoidAsync("Alert", procResp.msg);
         }else{
             await JS.InvokeVoidAsync("Alert", procResp.msg);
-            Console.WriteLine("REPARTIDOR " + usu.usuId + "REGISTRADO");
-            Navigation.NavigateTo("/repartidores");
+
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/repartidores" :
+            "/repartidores";
+            Navigation.NavigateTo("/" + Configuration["cmappname"] + "/repartidores");
         }
         loading = false;
     }
@@ -157,7 +161,8 @@
 
         ResponseResult? apiResp = new ResponseResult();
 
-        string apiUrl = ApiEndpoints.apiRegistrarRep;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiRegistrarRep;
         var theData = new StringContent(
             JsonSerializer.Serialize(usu),
             System.Text.Encoding.UTF8,

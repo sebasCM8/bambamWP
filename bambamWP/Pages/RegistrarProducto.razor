@@ -6,6 +6,8 @@
 @inject NavigationManager Navigation
 @using bambamWP.Models
 @using System.Text.Json;
+@inject IConfiguration Configuration
+@using System.IO
 
 <style>
     .cmheadcont {
@@ -22,6 +24,10 @@
 
     button:hover.cmbutton {
         background-color: #ebce6e;
+    }
+
+    img{
+        max-width: 400px;
     }
 </style>
 
@@ -84,7 +90,6 @@
         </div>
     }
 </div>
-
 <button disabled="@loading" @onclick="regbtn" class="cmbutton ms-5">REGISTRAR</button>
 
 <LoginAuthAdmin />
@@ -140,7 +145,8 @@
         RRObtCatsUnis apiResp = new RRObtCatsUnis();
         try
         {
-            string theUrl = ApiEndpoints.apiObtenerCatUni;
+            ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+            string theUrl = apiManager.apiObtenerCatUni;
             var client = ClientFactory.CreateClient();
             using var httpResponseMessage = await client.GetAsync(theUrl);
 
@@ -175,7 +181,12 @@
         else
         {
             await JS.InvokeVoidAsync("Alert", procResp.msg);
-            Navigation.NavigateTo("/productos");
+
+            string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/productos" :
+            "/productos";
+
+            Navigation.NavigateTo(theurl);
         }
         loading = false;
     }
@@ -230,7 +241,8 @@
 
         ResponseResult? apiResp = new ResponseResult();
 
-        string apiUrl = ApiEndpoints.apiRegistrarProducto;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string apiUrl = apiManager.apiRegistrarProducto;
         var theData = new StringContent(
             JsonSerializer.Serialize(nuevoProd),
             System.Text.Encoding.UTF8,

@@ -5,18 +5,23 @@
 @inject IHttpClientFactory ClientFactory
 @using System.Text.Json
 @using System.Text.Json.Serialization
+@inject IConfiguration Configuration
 
 @code {
     protected override async Task OnInitializedAsync(){
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+            "/" + Configuration[BambamConstant.bbappname] + "/" :
+            "/";
+        
         var storageResp = await ProtectedSessionStore.GetAsync<String>("usuId");
         if (!storageResp.Success)
         {
-            Console.WriteLine("BAD GUY KICKED OUT >:(");
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo(theurl);
         }
 
         ResponseResult apiResp = new ResponseResult();
-        string theUrl = ApiEndpoints.apiVerificarAdmin;
+        ApiEndpoints apiManager = new ApiEndpoints(Configuration["cmtheurl"]);
+        string theUrl = apiManager.apiVerificarAdmin;
         Usuario theUsu = new Usuario();
         theUsu.usuId = storageResp.Value;
         var theData = new StringContent(
@@ -34,14 +39,12 @@
         }
         else
         {
-            Console.WriteLine("ERROR AL SOLICITAR VERIFICAR TRABAJADOR");
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo(theurl);
         }
 
         if (!apiResp.ok)
         {
-            Console.WriteLine(apiResp.msg);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo(theurl);
         }
     }
 }

@@ -1,0 +1,38 @@
+﻿@layout BambamLayout
+@page "/geststock"
+
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage ProtectedSessionStore
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@using bambamWP.Models
+
+<h3>Gestion de Stock</h3>
+
+<div class="row">
+    <div class="col-auto m-3">
+        <button @onclick="ingreso">Ingreso</button>
+    </div>
+    <div class="col-auto m-3">
+        <button @onclick="egreso">Egreso</button>
+    </div>
+</div>
+
+<LoginAuthAdmin />
+
+@code {
+    private void ingreso(){
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+        "/" + Configuration[BambamConstant.bbappname] + "/ingreso" :
+        "/ingreso";
+        Navigation.NavigateTo(theurl);
+    }
+
+    private void egreso()
+    {
+        string theurl = Configuration[BambamConstant.bbappname] != "" ?
+        "/" + Configuration[BambamConstant.bbappname] + "/egreso" :
+        "/egreso";
+        Navigation.NavigateTo(theurl);
+    }
+}

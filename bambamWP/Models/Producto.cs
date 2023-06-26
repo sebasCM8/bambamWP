@@ -11,5 +11,6 @@
         public int proEstado { get; set; } = 0;
         public string proUniNombre { get; set; } = "";
         public string proCatNombre { get; set; } = "";
+        public decimal proStock { get; set; } = 0;
     }
 }
